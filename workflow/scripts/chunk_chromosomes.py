@@ -438,7 +438,7 @@ for i in np.flatnonzero(filter_chunks):
         "thin": int(snakemake.params.mcmc_thin), 
         "n": int(snakemake.params.mcmc_samples),
         "Ne": float(Ne),
-        #"m": float(mut.mean_rate),
+        #"m": float(mut.mean_rate),  # TODO: any reason to prefer coarse rates?
         #"r": float(rec.mean_rate),
         "m": str(0.0),    # NB: SINGER expects these arguments and toggles
         "r": float(0.0),  # map usage based on if at least one is positive
