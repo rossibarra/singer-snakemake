@@ -1,6 +1,8 @@
 # 29-Aug-25 [0.1.1]
 
-- Use fine-scale mutation rate map to directly model missing intervals
+- Use discretization scheme that delineates chunks between large "gaps" of masked sequence
+- Use fine-scale recombination and mutation rate maps in SINGER
+- Use POLEGON to date chunks accounting for masked sequence / missing data via branch spans
 - Add validation pipeline
 
 # 14-Jun-25 [0.1.0]

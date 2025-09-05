@@ -1,5 +1,5 @@
 """
-Run POLEGON on a chromosome.
+Run POLEGON on a chromosome. Not currently used.
 
 Part of https://github.com/nspope/singer-snakemake.
 """
@@ -55,14 +55,16 @@ def write_polegon_inputs(ts, prefix):
 
 # --- implm --- #
 
-SKIP = False  #DEBUG
+use_polegon = True
 params = yaml.safe_load(open(snakemake.input.params))
 params["seed"] += snakemake.params.seed_offset
-params["Ne"] *= 2  # TODO this will match what singer-master does
+
+params["Ne"] *= 2  
+# TODO this will match what singer-master does, but should cancel anyways?
 
 ts = tszip.load(snakemake.input.trees)
 
-if not SKIP:  #DEBUG
+if use_polegon:
     write_polegon_inputs(ts, snakemake.input.trees)
     invocation = [
         f"{snakemake.params.polegon_binary}",

@@ -329,6 +329,7 @@ rule coalescence_rates:
     Rates are calculated within logarithmically-spaced time bins.
     """
     input:
+        inaccessible = rules.chunk_chromosomes.output.inaccessible,
         windows = rules.chunk_chromosomes.output.windows,
         trees = rules.merge_chunks.output.trees,
     output:

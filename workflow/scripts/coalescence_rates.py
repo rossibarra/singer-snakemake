@@ -58,7 +58,7 @@ def weighted_pair_coalescence_rates(
     return rates, counts, epochs
 
 
-# TODO: move to tests?
+# TODO: move to validation workflow
 def simulation_test(seed, popsize, num_epochs):
     """
     For debugging, not run
@@ -85,21 +85,24 @@ def simulation_test(seed, popsize, num_epochs):
 
 # --- implm --- #
 
-# TODO: this is incorrect now that we're using finescale map
-# for inaccessible intervals
-
 num_intervals = snakemake.params.coalrate_epochs
 windows = pickle.load(open(snakemake.input.windows, "rb"))
+inaccessible = pickle.load(open(snakemake.input.inaccessible, "rb"))
 chunk_size = np.diff(windows.position)
 ts = tszip.decompress(snakemake.input.trees)
 
+# FIXME: as a crude workaround for missing data, we weight PDF for each chunk
+# by the proportion of accessible sequence. A better approach would calculate
+# PDF over each accessible interval, and then take weighted sum.
+accessible = msprime.RateMap(position=inaccessible.position, rate=1 - inaccessible.rate)
+prop_accessible = np.diff(accessible.get_cumulative_mass(windows.position)) / chunk_size
 
 # global pair coalescence rates
 sample_sets = [list(ts.samples())]
 indexes = [(0, 0)]
 rates, pdf, breaks = weighted_pair_coalescence_rates(
     ts, sample_sets, indexes, windows.position, 
-    prop_accessible=windows.rate,
+    prop_accessible=prop_accessible,
     num_time_bins=num_intervals,
 )
 output = {
@@ -127,7 +130,7 @@ if snakemake.params.stratify is not None:
         rates, pdf, breaks = \
             weighted_pair_coalescence_rates(
                 ts, sample_sets, indexes, windows.position, 
-                prop_accessible=windows.rate, 
+                prop_accessible=prop_accessible,
                 num_time_bins=num_intervals,
             )
         cross_rates[i] = rates
