@@ -58,7 +58,7 @@ def weighted_pair_coalescence_rates(
     return rates, counts, epochs
 
 
-
+# TODO: move to tests?
 def simulation_test(seed, popsize, num_epochs):
     """
     For debugging, not run
@@ -85,23 +85,21 @@ def simulation_test(seed, popsize, num_epochs):
 
 # --- implm --- #
 
-# TODO: check weights for statistics calculations
-# these are now wrong. we should only multiply each window
-# by the length of accessible sequence / sum of lengths
+# TODO: this is incorrect now that we're using finescale map
+# for inaccessible intervals
 
 num_intervals = snakemake.params.coalrate_epochs
-inaccessible = pickle.load(open(snakemake.input.inaccessible, "rb"))
-chunk_size = np.diff(inaccessible.position)
+windows = pickle.load(open(snakemake.input.windows, "rb"))
+chunk_size = np.diff(windows.position)
 ts = tszip.decompress(snakemake.input.trees)
 
 
 # global pair coalescence rates
 sample_sets = [list(ts.samples())]
 indexes = [(0, 0)]
-windows = inaccessible.position
 rates, pdf, breaks = weighted_pair_coalescence_rates(
-    ts, sample_sets, indexes, windows, 
-    prop_accessible=1 - inaccessible.rate, 
+    ts, sample_sets, indexes, windows.position, 
+    prop_accessible=windows.rate,
     num_time_bins=num_intervals,
 )
 output = {
@@ -128,8 +126,8 @@ if snakemake.params.stratify is not None:
         indexes = [(i, j) for j in range(names.size)]
         rates, pdf, breaks = \
             weighted_pair_coalescence_rates(
-                ts, sample_sets, indexes, windows, 
-                prop_accessible=1 - inaccessible.rate, 
+                ts, sample_sets, indexes, windows.position, 
+                prop_accessible=windows.rate, 
                 num_time_bins=num_intervals,
             )
         cross_rates[i] = rates

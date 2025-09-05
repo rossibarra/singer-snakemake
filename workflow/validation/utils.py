@@ -1,3 +1,9 @@
+"""
+Utility functions for validation pipeline.
+
+Part of https://github.com/nspope/singer-snakemake.
+"""
+
 import numpy as np
 import tskit
 import msprime

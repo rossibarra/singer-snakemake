@@ -31,22 +31,20 @@ coord = windows[:-1] / 2 + windows[1:] / 2
 vcf_stats = pickle.load(open(snakemake.input.vcf_stats, "rb"))
 site_diversity = vcf_stats['diversity']
 site_tajima_d = vcf_stats['tajima_d']
-site_folded_afs = vcf_stats['folded_afs']
-site_unfolded_afs = vcf_stats['unfolded_afs']
+site_afs = vcf_stats['afs']
 
 # statistics from MCMC samples of trees
 num_mcmc = snakemake.params.mcmc_samples
 num_burnin = snakemake.params.mcmc_burnin
 branch_diversity = np.zeros((windows.size - 1, num_mcmc))
 branch_tajima_d = np.zeros((windows.size - 1, num_mcmc))
-branch_folded_afs = np.zeros((site_folded_afs.size, num_mcmc))
-branch_unfolded_afs = np.zeros((site_unfolded_afs.size, num_mcmc))
+branch_afs = np.zeros((site_afs.size, num_mcmc))
 for i, stats_file in enumerate(snakemake.input.stats):
     stats = pickle.load(open(stats_file, "rb"))
     branch_diversity[:, i] = stats['diversity']
     branch_tajima_d[:, i] = stats['tajima_d']
-    branch_folded_afs[:, i] = stats['folded_afs'][:site_folded_afs.size]
-    branch_unfolded_afs[:, i] = stats['unfolded_afs'][:site_unfolded_afs.size]
+    branch_afs[:, i] = stats['afs'][:site_afs.size]
+    polarised = site_afs.size == stats['afs'].size
 
 # posterior mean, quantiles
 conf_level = snakemake.params.confidence_level
@@ -55,12 +53,10 @@ trace_diversity = np.nanmean(branch_diversity, axis=0)  # NB: not correctly weig
 trace_tajima_d = np.nanmean(branch_tajima_d, axis=0)
 quant_diversity = np.nanquantile(branch_diversity[:, num_burnin:], quantiles, axis=-1)
 quant_tajima_d = np.nanquantile(branch_tajima_d[:, num_burnin:], quantiles, axis=-1)
-quant_folded_afs = np.quantile(branch_folded_afs[:, num_burnin:], quantiles, axis=-1)
-quant_unfolded_afs = np.quantile(branch_unfolded_afs[:, num_burnin:], quantiles, axis=-1)
+quant_afs = np.quantile(branch_afs[:, num_burnin:], quantiles, axis=-1)
 mean_diversity = np.nanmean(branch_diversity[:, num_burnin:], axis=1)
 mean_tajima_d = np.nanmean(branch_tajima_d[:, num_burnin:], axis=1)
-mean_folded_afs = np.mean(branch_folded_afs[:, num_burnin:], axis=1)
-mean_unfolded_afs = np.mean(branch_unfolded_afs[:, num_burnin:], axis=1)
+mean_afs = np.mean(branch_afs[:, num_burnin:], axis=1)
 
 if snakemake.output.diversity_scatter is not None:
     plt.figure(figsize=(5, 4))
@@ -124,32 +120,18 @@ if snakemake.output.tajima_d_skyline is not None:
     plt.savefig(snakemake.output.tajima_d_skyline)
     plt.clf()
 
-if snakemake.output.folded_afs is not None:
+if snakemake.output.frequency_spectrum is not None:
     plt.figure(figsize=(8, 4))
-    freq = np.arange(1, site_folded_afs.size)
-    plt.fill_between(freq, quant_folded_afs[0][1:], quant_folded_afs[1][1:], color='firebrick', alpha=0.1)
-    plt.scatter(freq, mean_folded_afs[1:], c='firebrick', label='branch-ARG', s=8)
-    plt.scatter(freq, site_folded_afs[1:], c='black', label='site-VCF', s=8)
-    plt.xlabel("Minor allele frequency")
+    freq = np.arange(1, site_afs.size)
+    plt.fill_between(freq, quant_afs[0][1:], quant_afs[1][1:], color='firebrick', alpha=0.1)
+    plt.scatter(freq, mean_afs[1:], c='firebrick', label='branch-ARG', s=8)
+    plt.scatter(freq, site_afs[1:], c='black', label='site-VCF', s=8)
+    plt.xlabel("Derived allele frequency" if polarised else "Minor allele frequency")
     plt.ylabel("# of variants / base")
     plt.yscale("log")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(snakemake.output.folded_afs)
-    plt.clf()
-
-if snakemake.output.unfolded_afs is not None:
-    plt.figure(figsize=(8, 4))
-    freq = np.arange(1, site_unfolded_afs.size - 1)
-    plt.fill_between(freq, quant_unfolded_afs[0][1:-1], quant_unfolded_afs[1][1:-1], color='firebrick', alpha=0.1)
-    plt.scatter(freq, mean_unfolded_afs[1:-1], c='firebrick', label='branch-ARG', s=8)
-    plt.scatter(freq, site_unfolded_afs[1:-1], c='black', label='site-VCF', s=8)
-    plt.xlabel("Derived allele frequency")
-    plt.ylabel("# of variants / base")
-    plt.yscale("log")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(snakemake.output.unfolded_afs)
+    plt.savefig(snakemake.output.frequency_spectrum)
     plt.clf()
 
 
@@ -160,38 +142,37 @@ if snakemake.params.stratify is not None:
     # statistics from VCF
     vcf_strata_stats = pickle.load(open(snakemake.input.vcf_strata_stats, "rb"))
     site_strata_divergence = vcf_strata_stats['divergence']
-    site_strata_folded_afs = vcf_strata_stats['folded_afs']
-    site_strata_unfolded_afs = vcf_strata_stats['unfolded_afs']
+    site_strata_afs = vcf_strata_stats['afs']
     strata = vcf_strata_stats["strata"]
 
     # statistics from MCMC samples of trees
     branch_strata_divergence = np.zeros((*site_strata_divergence.shape, num_mcmc))
-    branch_strata_folded_afs = [np.zeros((*x.shape, num_mcmc)) for x in site_strata_folded_afs]
-    branch_strata_unfolded_afs = [np.zeros((*x.shape, num_mcmc)) for x in site_strata_unfolded_afs]
+    branch_strata_afs = [np.zeros((*x.shape, num_mcmc)) for x in site_strata_afs]
     for i, stats_file in enumerate(snakemake.input.strata_stats):
         strata_stats = pickle.load(open(stats_file, "rb"))
         assert strata_stats["strata"] == strata
         branch_strata_divergence[..., i] = strata_stats['divergence']
-        for j, x in enumerate(strata_stats['folded_afs']):
-            branch_strata_folded_afs[j][:, i] = x[:site_strata_folded_afs[j].size]
-        for j, x in enumerate(strata_stats['unfolded_afs']):
-            branch_strata_unfolded_afs[j][:, i] = x[:site_strata_unfolded_afs[j].size]
+        for j, x in enumerate(strata_stats['afs']):
+            branch_strata_afs[j][:, i] = x[:site_strata_afs[j].size]
 
     # posterior mean, quantiles
     trace_strata_divergence = np.nanmean(branch_strata_divergence, axis=0)
-    quant_strata_divergence = np.nanquantile(branch_strata_divergence[..., num_burnin:], quantiles, axis=-1)
-    quant_strata_folded_afs = [
-        np.quantile(x[..., num_burnin:], quantiles, axis=1) for x in branch_strata_folded_afs
+    quant_strata_divergence = np.nanquantile(
+        branch_strata_divergence[..., num_burnin:], 
+        quantiles, 
+        axis=-1,
+    )
+    quant_strata_afs = [
+        np.quantile(x[..., num_burnin:], quantiles, axis=1) 
+        for x in branch_strata_afs
     ]
-    quant_strata_unfolded_afs = [
-        np.quantile(x[..., num_burnin:], quantiles, axis=1) for x in branch_strata_unfolded_afs
-    ]
-    mean_strata_divergence = np.nanmean(branch_strata_divergence[..., num_burnin:], axis=-1)
-    mean_strata_folded_afs = [
-        np.mean(x[..., num_burnin:], axis=-1) for x in branch_strata_folded_afs
-    ]
-    mean_strata_unfolded_afs = [
-        np.mean(x[..., num_burnin:], axis=-1) for x in branch_strata_unfolded_afs
+    mean_strata_divergence = np.nanmean(
+        branch_strata_divergence[..., num_burnin:], 
+        axis=-1,
+    )
+    mean_strata_afs = [
+        np.mean(x[..., num_burnin:], axis=-1) 
+        for x in branch_strata_afs
     ]
 
     # plot chunk divergence
@@ -252,10 +233,10 @@ if snakemake.params.stratify is not None:
     plt.savefig(strata_divergence_trace)
     plt.clf()
 
-    # plot folded afs across strata
-    strata_folded_afs = os.path.join(
-        os.path.dirname(snakemake.output.folded_afs),
-        "strata-folded-afs.png",
+    # plot afs across strata
+    strata_afs = os.path.join(
+        os.path.dirname(snakemake.output.frequency_spectrum),
+        "strata-frequency-spectrum.png",
     )
     fig, axs = plt.subplots(
         len(strata), 1, figsize=(8, len(strata) * 4),
@@ -263,62 +244,30 @@ if snakemake.params.stratify is not None:
     )
     k = 0
     for i, p in enumerate(strata):
-        freq = np.arange(1, site_strata_folded_afs[i].size)
+        freq = np.arange(1, site_strata_afs[i].size)
         axs[i, 0].fill_between(
             freq, 
-            quant_strata_folded_afs[i][0, 1:], 
-            quant_strata_folded_afs[i][1, 1:], 
+            quant_strata_afs[i][0, 1:], 
+            quant_strata_afs[i][1, 1:], 
             color='firebrick', 
             alpha=0.1,
         )
         axs[i, 0].scatter(
-            freq, mean_strata_folded_afs[i][1:], 
+            freq, mean_strata_afs[i][1:], 
             c='firebrick', label='branch-ARG', s=8,
         )
         axs[i, 0].scatter(
-            freq, site_strata_folded_afs[i][1:], 
+            freq, site_strata_afs[i][1:], 
             c='black', label='site-VCF', s=8,
         )
         axs[i, 0].set_title(f"{p}", loc="left", size=12)
         axs[i, 0].set_yscale("log")
         axs[i, 0].legend()
-    fig.supxlabel("Minor allele frequency")
-    fig.supylabel("# of variants / base")
-    plt.savefig(strata_folded_afs)
-    plt.clf()
-    
-    # plot unfolded afs across strata
-    strata_unfolded_afs = os.path.join(
-        os.path.dirname(snakemake.output.unfolded_afs),
-        "strata-unfolded-afs.png",
+    fig.supxlabel(
+        "Derived allele frequency" if polarised 
+        else "Minor allele frequency"
     )
-    fig, axs = plt.subplots(
-        len(strata), 1, figsize=(8, len(strata) * 4),
-        constrained_layout=True, squeeze=False,
-    )
-    k = 0
-    for i, p in enumerate(strata):
-        freq = np.arange(1, site_strata_unfolded_afs[i].size - 1)
-        axs[i, 0].fill_between(
-            freq, 
-            quant_strata_unfolded_afs[i][0, 1:-1], 
-            quant_strata_unfolded_afs[i][1, 1:-1], 
-            color='firebrick', 
-            alpha=0.1,
-        )
-        axs[i, 0].scatter(
-            freq, mean_strata_unfolded_afs[i][1:-1], 
-            c='firebrick', label='branch-ARG', s=8,
-        )
-        axs[i, 0].scatter(
-            freq, site_strata_unfolded_afs[i][1:-1], 
-            c='black', label='site-VCF', s=8,
-        )
-        axs[i, 0].set_title(f"{p}", loc="left", size=12)
-        axs[i, 0].set_yscale("log")
-        axs[i, 0].legend()
-    fig.supxlabel("Derived allele frequency")
     fig.supylabel("# of variants / base")
-    plt.savefig(strata_unfolded_afs)
+    plt.savefig(strata_afs)
     plt.clf()
     

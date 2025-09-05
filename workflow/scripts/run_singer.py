@@ -17,7 +17,7 @@ def tag():
 # --- implm --- #
 
 logfile = snakemake.input.params.replace(".yaml", ".log")
-params = yaml.safe_load(open(snakemake.input.params))
+params = yaml.safe_load(open(snakemake.input.params)).pop("singer")
 seed = params.pop("seed")
 
 invocation = [f"{snakemake.params.singer_binary}"]
@@ -41,5 +41,4 @@ with open(snakemake.log.out, "w") as out, open(snakemake.log.err, "w") as err:
         if process.returncode == 0: 
             break
     print(f"{tag()} SINGER run ended ({process.returncode})", file=out, flush=True)
-
 assert process.returncode == 0, f"SINGER terminated with error ({process.returncode})"

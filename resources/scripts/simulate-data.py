@@ -8,7 +8,7 @@ import argparse
 
 docstring = \
 """
-Simulate exapmle inputs for pipeline, with missing data and variable recombination rates.
+Simulate example inputs for pipeline, with missing data and variable recombination rates.
 """
 
 parser = argparse.ArgumentParser()

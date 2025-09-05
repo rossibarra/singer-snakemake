@@ -1,4 +1,9 @@
-# 14-Jun-25 [0.0.1]
+# 29-Aug-25 [0.1.1]
+
+- Use fine-scale mutation rate map to directly model missing intervals
+- Add validation pipeline
+
+# 14-Jun-25 [0.1.0]
 
 - Add provenance, populations to tree sequences
 - Stratified statistics calculation for diagnostic plots
