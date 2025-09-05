@@ -134,7 +134,7 @@ checkpoint chunk_chromosomes:
         polarised = POLARISED,
         max_missing = MAX_MISSING,
         stratify = STRATIFY_BY,
-        model_missing = 1, #False, #TODO delete
+        model_missing = True, #TODO: for debugging, delete
         mcmc_samples = MCMC_SAMPLES,
         mcmc_thin = MCMC_THIN,
         polegon_mcmc_samples = POLEGON_MCMC_SAMPLES,
@@ -153,23 +153,23 @@ rule run_singer:
     """
     input:
         params = os.path.join(CHUNK_PATH, "{id}.yaml"),
-    output:  # TODO mark temp
+    output:  #TODO mark temp
         recombs = expand(
-                os.path.join(CHUNK_PATH, "{id}_recombs_{rep}.txt"),
-                rep=range(MCMC_SAMPLES), allow_missing=True,
-            ),
+            os.path.join(CHUNK_PATH, "{id}_recombs_{rep}.txt"),
+            rep=range(MCMC_SAMPLES), allow_missing=True,
+        ),
         branches = expand(
-                os.path.join(CHUNK_PATH, "{id}_branches_{rep}.txt"),
-                rep=range(MCMC_SAMPLES), allow_missing=True,
-            ),
+            os.path.join(CHUNK_PATH, "{id}_branches_{rep}.txt"),
+            rep=range(MCMC_SAMPLES), allow_missing=True,
+        ),
         nodes = expand(
-                os.path.join(CHUNK_PATH, "{id}_nodes_{rep}.txt"),
-                rep=range(MCMC_SAMPLES), allow_missing=True,
-            ),
+            os.path.join(CHUNK_PATH, "{id}_nodes_{rep}.txt"),
+            rep=range(MCMC_SAMPLES), allow_missing=True,
+        ),
         muts = expand(
-                os.path.join(CHUNK_PATH, "{id}_muts_{rep}.txt"),
-                rep=range(MCMC_SAMPLES), allow_missing=True,
-            ),
+            os.path.join(CHUNK_PATH, "{id}_muts_{rep}.txt"),
+            rep=range(MCMC_SAMPLES), allow_missing=True,
+        ),
     log:
         out = os.path.join(CHUNK_PATH, "{id}.stdout"),
         err = os.path.join(CHUNK_PATH, "{id}.stderr"),
@@ -190,7 +190,7 @@ rule run_polegon:
         branches = os.path.join(CHUNK_PATH, "{id}_branches_{rep}.txt"),
         nodes = os.path.join(CHUNK_PATH, "{id}_nodes_{rep}.txt"),
         muts = os.path.join(CHUNK_PATH, "{id}_muts_{rep}.txt"),
-    output:  # TODO mark temp
+    output:  #TODO mark temp
         nodes = os.path.join(CHUNK_PATH, "{id}_polegon_{rep}.txt"),
     params:
         polegon_binary = POLEGON_BINARY,
@@ -245,6 +245,7 @@ rule merge_chunks:
         "scripts/merge_chunks.py"
 
 
+# TODO: delete
 #rule run_polegon:
 #    """
 #    Run POLEGON to date chromosome, using a fine-scale mutation rate map that models
@@ -301,7 +302,7 @@ rule diagnostics:
     statistics.
     """
     input:
-        ratemap = rules.chunk_chromosomes.output.windows,
+        ratemap = rules.chunk_chromosomes.output.windows, #TODO: rename
         vcf_stats = rules.chunk_chromosomes.output.vcf_stats,
         vcf_strata_stats = rules.chunk_chromosomes.output.vcf_strata_stats,
         stats = lambda w: diagnostics_input(w, "stats"),
@@ -357,7 +358,7 @@ rule plot_coalescence_rates:
     Plot distributions of pair coalescence times.
     """
     input:
-        ratemap = rules.chunk_chromosomes.output.windows,
+        ratemap = rules.chunk_chromosomes.output.windows, #TODO: rename
         coalrate = lambda w: plot_coalescence_rates_input(w, "coalrate"),
         crossrate = lambda w: plot_coalescence_rates_input(w, "crossrate"),
     output:
