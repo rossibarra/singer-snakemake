@@ -53,10 +53,10 @@ polarised: True # are variants polarised so that the reference state is ancestra
 random-seed: 1 # random seed
 # --- discretization options ---
 max-chunk-size: 1.0e6 # target size in base pairs for each chunk run through SINGER
-min-chunk-size: 0.5e5 # discard chunks smaller than this (e.g. isolated between gaps)
-min-gap-size: 0.5e6 # minimum size in base pairs for a masked interval to be converted to a gap
-max-missing: 0.6 # ignore chunks with more than this proportion of masked sequence or filtered variants
-min-sites: 500 # ignore chunks with fewer than this number of accessible variable sites
+min-chunk-size: 0.1e6 # discard chunks smaller than this (e.g. isolated between gaps)
+min-gap-size: 1.0e6 # minimum size in base pairs for a masked interval to be converted to a gap
+max-missing: 0.8 # ignore chunks with more than this proportion of masked sequence or filtered variants
+min-sites: 500 # ignore chunks with fewer than this number of accessible polymorphic sites
 min-branch-length: 1.0e-7 # minimum possible branch length in generations in tree sequence
 # --- SINGER options ---
 singer-mcmc-samples: 100 # number of MCMC samples (each sample is a tree sequence)
@@ -67,7 +67,7 @@ singer-mcmc-resumes: 1000 # maximum number of times to try to resume MCMC on err
 polegon-mcmc-samples: 100 # number of MCMC samples for POLEGON dating
 polegon-mcmc-thin: 10 # thinning interval between MCMC samples for POLEGON dating
 polegon-mcmc-burnin: 0.5 # proportion of initial samples trimmed from posterior mean for POLEGON dating
-polegon-scaling-reps: 5 # number of rescaling reps after MCMC sampling for POLEGON dating
+polegon-scaling-reps: 5 # number of timescale rescaling reps after MCMC sampling for POLEGON dating
 polegon-max-step: 10.0 # step size used in proposal for POLEGON dating
 # --- pair coalescence rates ---
 coalrate-epochs: 25 # number of time intervals within which to calculate statistics
@@ -108,6 +108,9 @@ rate is adjusted to account for missing data using the scheme above.
 
 <img src="resources/figures/missing-data-example.png" width="70%" />
 
+In all three cases, expected and observed summary statistics are a good match;
+the problem with (B) is that the bias introduced by missing data has been absorbed 
+into node ages rather than mutation rate.
 An important consequence is that when calculating expectations of (linear) site
 statistics from branch statistics in the ARG (e.g. `mode='site'` and
 `mode='branch'` in ``tskit``'s stats methods), then the contribution from each
@@ -164,3 +167,13 @@ in each of YRI, CEU, and CHB:
 Where plot labels are `(frequency in YRI, in CEU, in CHB)`, and the monomorphic bins
 `(0, 0, 0)` and `(2, 2, 2)` exist because of down-projection (i.e. mutations
 which have zero frequency in a subsample of two haploids, taken from some larger sample).
+
+
+# TODO
+
+- Rewrite missing data section for fine scaled mask
+- Describe discretization strategy
+- Update names of output files
+- Describe pair coalescence rates, statistics?
+- Mention POLEGON paper
+- Add hyperlinks for sections

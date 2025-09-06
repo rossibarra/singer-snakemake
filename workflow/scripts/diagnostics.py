@@ -99,8 +99,8 @@ if snakemake.output.tajima_d_trace is not None:
 if snakemake.output.diversity_skyline is not None:
     plt.figure(figsize=(8, 4))
     plt.fill_between(coord, quant_diversity[0], quant_diversity[1], color='firebrick', alpha=0.1)
-    plt.plot(coord, mean_diversity, "-", c='firebrick', label='branch-ARG')
-    plt.plot(coord, site_diversity, "-", c='black', label='site-VCF')
+    plt.plot(coord, mean_diversity, "-o", c='firebrick', label='branch-ARG', markersize=3)
+    plt.plot(coord, site_diversity, "-o", c='black', label='site-VCF', markersize=3)
     plt.xlabel("Position on chromosome")
     plt.ylabel("Diversity / base")
     plt.legend()
@@ -111,8 +111,8 @@ if snakemake.output.diversity_skyline is not None:
 if snakemake.output.tajima_d_skyline is not None:
     plt.figure(figsize=(8, 4))
     plt.fill_between(coord, quant_tajima_d[0], quant_tajima_d[1], color='firebrick', alpha=0.1)
-    plt.plot(coord, mean_tajima_d, "-", c='firebrick', label='branch-ARG')
-    plt.plot(coord, site_tajima_d, "-", c='black', label='site-VCF')
+    plt.plot(coord, mean_tajima_d, "-o", c='firebrick', label='branch-ARG', markersize=3)
+    plt.plot(coord, site_tajima_d, "-o", c='black', label='site-VCF', markersize=3)
     plt.xlabel("Position on chromosome")
     plt.ylabel("Tajima's D")
     plt.legend()
@@ -203,34 +203,6 @@ if snakemake.params.stratify is not None:
     fig.supxlabel("Site (VCF) divergence per chunk")
     fig.supylabel("E[divergence] per chunk")
     plt.savefig(strata_divergence_scatter)
-    plt.clf()
-
-    # plot divergence trace
-    strata_divergence_trace = os.path.join(
-        os.path.dirname(snakemake.output.diversity_trace), 
-        "strata-divergence-trace.png",
-    )
-    fig, axs = plt.subplots(
-        len(strata), len(strata), 
-        figsize=(len(strata) * 4, len(strata) * 3.5),
-        constrained_layout=True, squeeze=False,
-    )
-    k = 0
-    for i, p in enumerate(strata):
-        for j, q in enumerate(strata):
-            if j >= i:
-                axs[i, j].plot(
-                    np.arange(branch_strata_divergence.shape[-1]), 
-                    np.nanmean(branch_strata_divergence[:, k], axis=0), 
-                    "-", c='firebrick',
-                )
-                axs[i, j].set_title(f"{p} vs {q}", loc="left", size=12)
-                k += 1
-            else:
-                axs[i, j].set_visible(False)
-    fig.supxlabel("MCMC iteration")
-    fig.supylabel("E[divergence]")
-    plt.savefig(strata_divergence_trace)
     plt.clf()
 
     # plot afs across strata

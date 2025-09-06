@@ -26,11 +26,12 @@ def tag():
 
 windows = pickle.load(open(snakemake.input.windows, "rb"))
 adjusted_mu = pickle.load(open(snakemake.input.mut_rate, "rb"))
+inaccessible = pickle.load(open(snakemake.input.inaccessible, "rb"))
 seed = 1 + int(snakemake.wildcards.rep) * 1000
 
 accessible = msprime.RateMap(
-    position=adjusted_mu.position,
-    rate=adjusted_mu.rate > 0,
+    position=inaccessible.position,
+    rate=1 - inaccessible.rate,
 )
 accessible_bp = np.diff(accessible.get_cumulative_mass(windows.position))
 

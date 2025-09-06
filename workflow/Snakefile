@@ -27,27 +27,36 @@ POLEGON_VERSION = "0.1.3.alpha.0c088b3"  # commit of included POLEGON binary
 
 INPUT_DIR = config["input-dir"]
 OUTPUT_DIR = config.get("output-dir", "results")
+POLARISED = bool(config["polarised"])
+MUTATION_RATE = float(config["mutation-rate"])
+RECOMBINATION_RATE = float(config["recombination-rate"])
+RAND_SEED = int(config["random-seed"])
+
 MAX_CHUNK_SIZE = float(config["max-chunk-size"])
 MIN_CHUNK_SIZE = float(config["min-chunk-size"])
 MIN_SITES = float(config["min-sites"])
 MAX_MISSING = float(config["max-missing"])
 MIN_GAP_SIZE = float(config["min-gap-size"])
 MIN_BRANCH_LENGTH = float(config["min-branch-length"])
-POLARISED = bool(config["polarised"])
-MUTATION_RATE = float(config["mutation-rate"])
-RECOMBINATION_RATE = float(config["recombination-rate"])
+
 SINGER_MCMC_THIN = int(config["singer-mcmc-thin"])
 SINGER_MCMC_SAMPLES = int(config["singer-mcmc-samples"])
 SINGER_MCMC_BURNIN = int(float(config["singer-mcmc-burnin"]) * SINGER_MCMC_SAMPLES)
 SINGER_MCMC_RESUMES = int(config["singer-mcmc-resumes"])
+assert SINGER_MCMC_SAMPLES > 0, "Number of SINGER MCMC samples must be nonzero"
+assert SINGER_MCMC_BURNIN < SINGER_MCMC_SAMPLES, "Burn-in exceeds number of SINGER MCMC samples"
+
 POLEGON_MCMC_THIN = int(config["polegon-mcmc-thin"])
 POLEGON_MCMC_SAMPLES = int(config["polegon-mcmc-samples"])
 POLEGON_MCMC_BURNIN = int(float(config["polegon-mcmc-burnin"]) * POLEGON_MCMC_SAMPLES)
 POLEGON_SCALING_REPS = int(config["polegon-scaling-reps"])
 POLEGON_MAX_STEP = float(config["polegon-max-step"])
-RAND_SEED = int(config["random-seed"])
+assert POLEGON_MCMC_SAMPLES > 0, "Number of POLEGON MCMC samples must be nonzero"
+assert POLEGON_MCMC_BURNIN < POLEGON_MCMC_SAMPLES, "Burn-in exceeds number of POLEGON MCMC samples"
+
 COALRATE_EPOCHS = int(config["coalrate-epochs"])
 STRATIFY_BY = None if config["stratify-by"] == "None" else config["stratify-by"]
+
 SINGER_BINARY = os.path.join(
    workflow.basedir, os.path.pardir, "resources", 
    "singer-0.1.8-beta-linux-x86_64", "singer",
@@ -58,11 +67,6 @@ POLEGON_BINARY = os.path.join(
    "polegon-0.1.3-alpha-linux-x86_64", "polegon",
 )
 POLEGON_BINARY = config.get("polegon-binary", POLEGON_BINARY)
-
-assert SINGER_MCMC_SAMPLES > 0, "Number of SINGER MCMC samples must be nonzero"
-assert SINGER_MCMC_BURNIN < SINGER_MCMC_SAMPLES, "Burn-in exceeds number of SINGER MCMC samples"
-assert POLEGON_MCMC_SAMPLES > 0, "Number of POLEGON MCMC samples must be nonzero"
-assert POLEGON_MCMC_BURNIN < POLEGON_MCMC_SAMPLES, "Burn-in exceeds number of POLEGON MCMC samples"
 
 CHROMOSOMES = config.get("chromosomes", None)
 if CHROMOSOMES is None:
@@ -114,7 +118,7 @@ checkpoint chunk_chromosomes:
         vcf = os.path.join(INPUT_DIR, "{chrom}.vcf.gz"),
     output:
         chunks = directory(CHUNK_PATH),
-        vcf = os.path.join(CHROM_PATH, "{chrom}.vcf"),
+        vcf = os.path.join(CHROM_PATH, "{chrom}.vcf"), #TODO: mark temp, need to include as input to SINGER to make persistant
         vcf_stats = os.path.join(CHROM_PATH, "{chrom}.vcf.stats.p"),
         vcf_strata_stats = os.path.join(CHROM_PATH, "{chrom}.vcf.strata_stats.p"),
         mut_rate = os.path.join(CHROM_PATH, "{chrom}.mut_rate.p"),
@@ -122,7 +126,7 @@ checkpoint chunk_chromosomes:
         inaccessible = os.path.join(CHROM_PATH, "{chrom}.inaccessible.p"),
         filtered = os.path.join(CHROM_PATH, "{chrom}.filtered.p"),
         metadata = os.path.join(CHROM_PATH, "{chrom}.vcf.samples.p"),
-        mut_map = os.path.join(CHROM_PATH, "{chrom}.mut_map"),
+        mut_map = os.path.join(CHROM_PATH, "{chrom}.mut_map"), #TODO: delete
         windows = os.path.join(CHROM_PATH, "{chrom}.windows.p"),
         site_density = os.path.join(PLOTS_PATH, "site_density.png"),
     log:
@@ -138,7 +142,6 @@ checkpoint chunk_chromosomes:
         recombination_rate = RECOMBINATION_RATE,
         polarised = POLARISED,
         stratify = STRATIFY_BY,
-        model_missing = True, #TODO: for debugging, delete
         mcmc_samples = SINGER_MCMC_SAMPLES,
         mcmc_thin = SINGER_MCMC_THIN,
         polegon_mcmc_samples = POLEGON_MCMC_SAMPLES,
@@ -146,6 +149,8 @@ checkpoint chunk_chromosomes:
         polegon_mcmc_burnin = POLEGON_MCMC_BURNIN,
         polegon_scaling_reps = POLEGON_SCALING_REPS,
         polegon_max_step = POLEGON_MAX_STEP,
+        # for debugging:
+        model_masked_sequence = config.get("model-masked-sequence", True),
     script:
         "scripts/chunk_chromosomes.py"
 
@@ -198,6 +203,9 @@ rule run_polegon:
         nodes = os.path.join(CHUNK_PATH, "{id}_polegon_{rep}.txt"),
     params:
         polegon_binary = POLEGON_BINARY,
+        # for debugging:
+        use_polegon = config.get("use-polegon", True),
+        use_mutational_span = config.get("use-mutational-span", True),
     log:
         out = os.path.join(CHUNK_PATH, "{id}_{rep}.stdout"),
         err = os.path.join(CHUNK_PATH, "{id}_{rep}.stderr"),
@@ -278,6 +286,7 @@ rule tree_statistics:
     """
     input:
         mut_rate = rules.chunk_chromosomes.output.mut_rate,
+        inaccessible = rules.chunk_chromosomes.output.inaccessible,
         windows = rules.chunk_chromosomes.output.windows,
         trees = rules.merge_chunks.output.trees,
     output:

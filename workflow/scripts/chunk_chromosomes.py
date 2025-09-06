@@ -140,17 +140,6 @@ positions = vcf['variants/POS']
 assert np.max(positions) <= hapmap.sequence_length, "VCF position exceeds hapmap length"
 
 
-# NB: to adjust mutation rate to account for missing data, there are two relevant
-# types of missingness: inaccessible intervals and filtered sites. The adjustment
-# has the form,
-#
-# `adjusted_mu = mu * (filtered_intervals / sequence_length) * (filtered_sites / segregating_sites)`
-#
-# where the last term is calculated *discounting* sites that lie in filtered
-# intervals. Alternatively, we can set the mutation rate to zero within each 
-# filtered interval, and omit the corresponding term from the adjusted rate.
-
-
 # filter variants
 counts = genotypes.count_alleles()
 filter_segregating = counts.is_segregating()
@@ -316,11 +305,11 @@ for l, r in zip(windows[:-1][~filter_chunks], windows[1:][~filter_chunks]):
         ax.axvspan(l, r, edgecolor=None, facecolor='firebrick', alpha=0.1)
         ax.set_xlim(windows[0], windows[-1])
 axs[0].step(windows[:-1], prop_inaccessible, where="post", color="black")
-axs[0].set_ylabel("Proportion masked")
+axs[0].set_ylabel("Proportion masked bases")
 axs[1].step(windows[:-1], prop_segregating, where="post", color="black")
 axs[1].set_ylabel("Proportion variant bases")
 axs[2].step(windows[:-1], prop_filtered, where="post", color="black")
-axs[2].set_ylabel("Proportion filtered")
+axs[2].set_ylabel("Proportion filtered variants")
 axs[3].step(windows[:-1], rec_rate, where="post", color="black")
 axs[3].set_ylabel("Mean recombination rate")
 axs[3].set_yscale("log")
@@ -360,7 +349,7 @@ assert num_bases.sum() == bitmask.size
 assert num_accessible.sum() == np.sum(~bitmask)
 assert num_filtered.sum() == filtered_positions.size
 assert num_retained.sum() == positions.size == np.sum(retain)
-# NB: these *may* be recalculated at finer scale to adjust mutation rate
+# NB: these arrays *may* be recalculated at finer scale to adjust mutation rate
 
 
 # calculate windowed stats and get ballpark Ne estimate from global diversity
@@ -393,10 +382,20 @@ logfile.write(
 )
 
 
-# adjust mutation rate to account for missing data in each chunk,
-# either by making a rate map where missing sequence has zero rate
-# or incorporating missing sequence into the global mutation rate
-if snakemake.params.model_missing:  
+# NB: to adjust mutation rate to account for missing data, there are two relevant
+# types of missingness: inaccessible intervals and filtered sites. The adjustment
+# has the form,
+#
+# `adjusted_mu = mu * (filtered_intervals / sequence_length) * (filtered_sites / segregating_sites)`
+#
+# where the last term is calculated *discounting* sites that lie in filtered
+# intervals. Alternatively, we can set the mutation rate to zero within each 
+# filtered interval, and omit the corresponding term from the adjusted rate.
+
+# adjust mutation rate to account for masked sequence in each chunk, either by
+# making a rate map where masked sequence has zero rate or incorporating into
+# the global mutation rate
+if snakemake.params.model_masked_sequence:
     logfile.write(
         f"{tag()} Adjusting per-chunk mutation rate to account for filtered sites "
         f"and setting mutation rate to zero within masked intervals\n"
@@ -405,7 +404,7 @@ if snakemake.params.model_missing:
     prop_inaccessible, breakpoints = bitmask_to_arrays(bitmask, insert_breakpoints=windows)
     assert breakpoints[-1] == windows[-1] and breakpoints[0] == windows[0]
     # map `prop_filtered` onto fine-scale intervals (e.g. use average within chunk)
-    # FIXME: would it be better to have a fine-scale `prop_filtered`? What about ones?
+    # FIXME: would it be better to have a fine-scale `prop_filtered`? Would need to smooth. 
     window_index = np.digitize(breakpoints[:-1], windows) - 1
     assert window_index.max() == windows.size - 2 and window_index.min() == 0
     prop_filtered = prop_filtered[window_index]
@@ -420,6 +419,7 @@ else:
         f"and masked intervals\n"
     )
 adj_mu = (1 - prop_inaccessible) * (1 - prop_filtered) * mutation_rate
+
 
 # dump recombination rates, adjusted mutation rates, proportion inaccessible,
 # proportion filtered, and chunk boundaries as RateMaps

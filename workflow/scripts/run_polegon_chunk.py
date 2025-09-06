@@ -22,41 +22,51 @@ def tag():
 
 # --- implm --- #
 
-use_polegon = True
+use_polegon = snakemake.params.use_polegon
+use_mutational_span = snakemake.params.use_mutational_span
+
 if use_polegon:
     params = yaml.safe_load(open(snakemake.input.params))
     params = params.pop("polegon")
     seed = params.pop("seed") + int(snakemake.wildcards.rep)
     # FIXME: Ne is lower by factor of two relative to `polegon_master`.
-    # This shouldn't matter, it cancels anyways, but look into it.
+    # This shouldn't matter, it cancels during rescaling, but look into it.
 
     # POLEGON expects inputs named slightly differently than SINGER output
     prefix = snakemake.input.muts.replace("_muts_", "_").removesuffix(".txt")
     shutil.copy(snakemake.input.muts, f"{prefix}_muts.txt")
     shutil.copy(snakemake.input.nodes, f"{prefix}_nodes.txt")
-    #shutil.copy(snakemake.input.branches, f"{prefix}_branches.txt")
 
-    # Adjust branch spans to reflect missing data, and absorb mutation rate into span.
-    # This is necessary because POLEGON doesn't use the "mutation-adjusted spans"
-    # from the mutation map during rescaling. Manually converting the branch spans
-    # to mutational units fixes this.
-    with open(snakemake.log.out, "w") as log:
-       log.write(
-           "f{tag()} Adjusting branch spans input ({prefix}_branches.txt) "
-           "to reflect mutational rate map and setting mutation rate to unity\n"
-       )
-    params["m"] = 1.0
-    mutation_map = params.pop("mutation_map")
-    adjusted_mu = np.loadtxt(mutation_map, ndmin=2)
-    assert np.all(adjusted_mu[:-1, 1] == adjusted_mu[1:, 0])
-    adjusted_mu = msprime.RateMap(
-       position=np.append(adjusted_mu[0, 0], adjusted_mu[:, 1]),
-       rate=adjusted_mu[:, 2],
-    )
-    branches = np.loadtxt(snakemake.input.branches)
-    for i in range(2):
-       branches[:, i] = adjusted_mu.get_cumulative_mass(branches[:, i])
-    np.savetxt(f"{prefix}_branches.txt", branches)
+    # Adjust branch spans to reflect masked sequence, and absorb mutation rate
+    # into span.  This is necessary because POLEGON doesn't use the "average
+    # branch mutation rate" from the mutation map during rescaling, and instead
+    # just adjusts by the mean rate. Manually converting the branch spans to
+    # mutational units fixes this.
+    if use_mutational_span:
+        with open(snakemake.log.out, "w") as log:
+           log.write(
+               f"{tag()} Adjusting branch spans input ({prefix}_branches.txt) "
+               f"to reflect mutation rate map and setting mutation rate to unity\n"
+           )
+        params["m"] = 1.0
+        mutation_map = params.pop("mutation_map")
+        adjusted_mu = np.loadtxt(mutation_map, ndmin=2)
+        assert np.all(adjusted_mu[:-1, 1] == adjusted_mu[1:, 0])
+        adjusted_mu = msprime.RateMap(
+           position=np.append(adjusted_mu[0, 0], adjusted_mu[:, 1]),
+           rate=adjusted_mu[:, 2],
+        )
+        branches = np.loadtxt(snakemake.input.branches)
+        for i in range(2):
+           branches[:, i] = adjusted_mu.get_cumulative_mass(branches[:, i])
+        np.savetxt(f"{prefix}_branches.txt", branches)
+    else:
+        with open(snakemake.log.out, "w") as log:
+           log.write(
+               f"{tag()} Using mutation rate map without adjusting branch spans input "
+               f"(for DEBUGGING, local ages may be wrong)\n"
+           )
+        shutil.copy(snakemake.input.branches, f"{prefix}_branches.txt")
 
     invocation = [
         f"{snakemake.params.polegon_binary}",
