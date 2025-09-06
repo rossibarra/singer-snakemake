@@ -9,14 +9,15 @@ random-seed: 1 # random seed
 # --- discretization options ---
 max-chunk-size: 1.0e6 # target size in base pairs for each chunk run through SINGER
 min-chunk-size: 0.5e5 # discard chunks smaller than this (e.g. isolated between gaps)
-min-gap-size: 1.0e6 # minimum size in base pairs for a masked interval to be converted to a gap
+min-gap-size: 0.5e6 # minimum size in base pairs for a masked interval to be converted to a gap
 max-missing: 0.6 # ignore chunks with more than this proportion of masked sequence or filtered variants
-min-branch-length: 1.0e-7 # minimum possible branch length in generations
+min-sites: 500 # ignore chunks with fewer than this number of accessible variable sites
+min-branch-length: 1.0e-7 # minimum possible branch length in generations in tree sequence
 # --- SINGER options ---
-mcmc-samples: 100 # number of MCMC samples (each sample is a tree sequence)
-mcmc-thin: 10 # thinning interval between MCMC samples
-mcmc-burnin: 0.5 # proportion of initial samples discarded when computing plots of statistics
-mcmc-resumes: 1000 # maximum number of times to try to resume MCMC on error at a given iteration
+singer-mcmc-samples: 100 # number of MCMC samples (each sample is a tree sequence)
+singer-mcmc-thin: 10 # thinning interval between MCMC samples
+singer-mcmc-burnin: 0.5 # proportion of initial samples discarded when computing plots of statistics
+singer-mcmc-resumes: 1000 # maximum number of times to try to resume MCMC on error
 # --- POLEGON options ---
 polegon-mcmc-samples: 100 # number of MCMC samples for POLEGON dating
 polegon-mcmc-thin: 10 # thinning interval between MCMC samples for POLEGON dating

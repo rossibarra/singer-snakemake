@@ -27,17 +27,19 @@ POLEGON_VERSION = "0.1.3.alpha.0c088b3"  # commit of included POLEGON binary
 
 INPUT_DIR = config["input-dir"]
 OUTPUT_DIR = config.get("output-dir", "results")
-CHUNK_SIZE = float(config["max-chunk-size"])
-GAP_SIZE = float(config["min-gap-size"])
+MAX_CHUNK_SIZE = float(config["max-chunk-size"])
+MIN_CHUNK_SIZE = float(config["min-chunk-size"])
+MIN_SITES = float(config["min-sites"])
 MAX_MISSING = float(config["max-missing"])
+MIN_GAP_SIZE = float(config["min-gap-size"])
+MIN_BRANCH_LENGTH = float(config["min-branch-length"])
 POLARISED = bool(config["polarised"])
 MUTATION_RATE = float(config["mutation-rate"])
 RECOMBINATION_RATE = float(config["recombination-rate"])
-MIN_BRANCH_LENGTH = float(config["min-branch-length"])
-MCMC_THIN = int(config["mcmc-thin"])
-MCMC_SAMPLES = int(config["mcmc-samples"])
-MCMC_BURNIN = int(float(config["mcmc-burnin"]) * MCMC_SAMPLES)
-MCMC_RESUMES = int(config["mcmc-resumes"] * MCMC_SAMPLES)
+SINGER_MCMC_THIN = int(config["singer-mcmc-thin"])
+SINGER_MCMC_SAMPLES = int(config["singer-mcmc-samples"])
+SINGER_MCMC_BURNIN = int(float(config["singer-mcmc-burnin"]) * SINGER_MCMC_SAMPLES)
+SINGER_MCMC_RESUMES = int(config["singer-mcmc-resumes"])
 POLEGON_MCMC_THIN = int(config["polegon-mcmc-thin"])
 POLEGON_MCMC_SAMPLES = int(config["polegon-mcmc-samples"])
 POLEGON_MCMC_BURNIN = int(float(config["polegon-mcmc-burnin"]) * POLEGON_MCMC_SAMPLES)
@@ -57,8 +59,8 @@ POLEGON_BINARY = os.path.join(
 )
 POLEGON_BINARY = config.get("polegon-binary", POLEGON_BINARY)
 
-assert MCMC_SAMPLES > 0, "Number of MCMC samples must be nonzero"
-assert MCMC_BURNIN < MCMC_SAMPLES, "Burn-in exceeds number of MCMC samples"
+assert SINGER_MCMC_SAMPLES > 0, "Number of SINGER MCMC samples must be nonzero"
+assert SINGER_MCMC_BURNIN < SINGER_MCMC_SAMPLES, "Burn-in exceeds number of SINGER MCMC samples"
 assert POLEGON_MCMC_SAMPLES > 0, "Number of POLEGON MCMC samples must be nonzero"
 assert POLEGON_MCMC_BURNIN < POLEGON_MCMC_SAMPLES, "Burn-in exceeds number of POLEGON MCMC samples"
 
@@ -99,7 +101,7 @@ rule all:
         ),
         trees = expand(
             os.path.join(TREES_PATH, "{chrom}.{rep}.tsz"), 
-            chrom=CHROMOSOMES, rep=range(MCMC_SAMPLES),
+            chrom=CHROMOSOMES, rep=range(SINGER_MCMC_SAMPLES),
         ),
 
 
@@ -127,16 +129,18 @@ checkpoint chunk_chromosomes:
         log = os.path.join(CHROM_PATH, "{chrom}.log"),
     params:
         seed = lambda w: SEED_ARRAY[w.chrom],
-        chunk_size = CHUNK_SIZE,
-        gap_size = GAP_SIZE,
+        max_chunk_size = MAX_CHUNK_SIZE,
+        min_chunk_size = MIN_CHUNK_SIZE,
+        max_missing = MAX_MISSING,
+        min_sites = MIN_SITES,
+        min_gap_size = MIN_GAP_SIZE,
         mutation_rate = MUTATION_RATE,
         recombination_rate = RECOMBINATION_RATE,
         polarised = POLARISED,
-        max_missing = MAX_MISSING,
         stratify = STRATIFY_BY,
         model_missing = True, #TODO: for debugging, delete
-        mcmc_samples = MCMC_SAMPLES,
-        mcmc_thin = MCMC_THIN,
+        mcmc_samples = SINGER_MCMC_SAMPLES,
+        mcmc_thin = SINGER_MCMC_THIN,
         polegon_mcmc_samples = POLEGON_MCMC_SAMPLES,
         polegon_mcmc_thin = POLEGON_MCMC_THIN,
         polegon_mcmc_burnin = POLEGON_MCMC_BURNIN,
@@ -156,25 +160,25 @@ rule run_singer:
     output:  #TODO mark temp
         recombs = expand(
             os.path.join(CHUNK_PATH, "{id}_recombs_{rep}.txt"),
-            rep=range(MCMC_SAMPLES), allow_missing=True,
+            rep=range(SINGER_MCMC_SAMPLES), allow_missing=True,
         ),
         branches = expand(
             os.path.join(CHUNK_PATH, "{id}_branches_{rep}.txt"),
-            rep=range(MCMC_SAMPLES), allow_missing=True,
+            rep=range(SINGER_MCMC_SAMPLES), allow_missing=True,
         ),
         nodes = expand(
             os.path.join(CHUNK_PATH, "{id}_nodes_{rep}.txt"),
-            rep=range(MCMC_SAMPLES), allow_missing=True,
+            rep=range(SINGER_MCMC_SAMPLES), allow_missing=True,
         ),
         muts = expand(
             os.path.join(CHUNK_PATH, "{id}_muts_{rep}.txt"),
-            rep=range(MCMC_SAMPLES), allow_missing=True,
+            rep=range(SINGER_MCMC_SAMPLES), allow_missing=True,
         ),
     log:
         out = os.path.join(CHUNK_PATH, "{id}.stdout"),
         err = os.path.join(CHUNK_PATH, "{id}.stderr"),
     params:
-        mcmc_resumes = MCMC_RESUMES,
+        mcmc_resumes = SINGER_MCMC_RESUMES,
         singer_binary = SINGER_BINARY,
     script:
         "scripts/run_singer.py"
@@ -291,7 +295,7 @@ def diagnostics_input(wildcards, regex):
     out = expand(
         os.path.join(dir, f"{{chrom}}.{{rep}}.{regex}.p"),
         chrom=wildcards.chrom,
-        rep=range(MCMC_SAMPLES),
+        rep=range(SINGER_MCMC_SAMPLES),
     )
     return out
 
@@ -316,8 +320,8 @@ rule diagnostics:
         tajima_d_skyline = os.path.join(PLOTS_PATH, "tajima-d-skyline.png"),
         frequency_spectrum = os.path.join(PLOTS_PATH, "frequency-spectrum.png"),
     params:
-        mcmc_samples = MCMC_SAMPLES,
-        mcmc_burnin = MCMC_BURNIN,
+        mcmc_samples = SINGER_MCMC_SAMPLES,
+        mcmc_burnin = SINGER_MCMC_BURNIN,
         confidence_level = 0.0,
         stratify = STRATIFY_BY,
     script:
@@ -348,7 +352,7 @@ def plot_coalescence_rates_input(wildcards, what):
     out = expand(
         os.path.join(dir, f"{{chrom}}.{{rep}}.{what}.p"),
         chrom=wildcards.chrom,
-        rep=range(MCMC_SAMPLES),
+        rep=range(SINGER_MCMC_SAMPLES),
     )
     return out
 
@@ -367,7 +371,7 @@ rule plot_coalescence_rates:
     params:
         coalrate_epochs = COALRATE_EPOCHS,
         stratify = STRATIFY_BY,
-        mcmc_samples = MCMC_SAMPLES,
-        mcmc_burnin = MCMC_BURNIN,
+        mcmc_samples = SINGER_MCMC_SAMPLES,
+        mcmc_burnin = SINGER_MCMC_BURNIN,
     script:
         "scripts/plot_coalescence_rates.py"

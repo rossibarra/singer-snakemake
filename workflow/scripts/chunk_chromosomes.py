@@ -203,13 +203,16 @@ genotypes, positions = genotypes[retain], positions[retain]
 # to delimit the chunks where SINGER will be run. If chunks are larger than
 # a certain size, split them into equal subdivisions.
 mutation_rate = snakemake.params.mutation_rate
-max_chunk_size = snakemake.params.chunk_size
+max_chunk_size = snakemake.params.max_chunk_size
+min_chunk_size = snakemake.params.min_chunk_size
+min_sites = snakemake.params.min_sites
+max_missing = snakemake.params.max_missing
+min_gap_size = snakemake.params.min_gap_size
 sequence_length = bitmask.size
-min_gap_size = snakemake.params.gap_size
 lower = np.min(positions) - 1 
 upper = np.max(positions) + 1 
-gap, intervals = bitmask_to_arrays(bitmask)
-gap = np.logical_and(np.diff(intervals) > min_gap_size, gap > 0)
+gap_size, intervals = bitmask_to_arrays(bitmask)
+gap = np.logical_and(np.diff(intervals) > min_gap_size, gap_size > 0)
 intervals = intervals.astype(np.int64)
 gapmask = np.full(bitmask.size, False)
 gapmask[:int(lower)] = True
@@ -243,6 +246,7 @@ rec_rate = np.diff(hapmap.get_cumulative_mass(windows)) / np.diff(windows)
 
 # tally filtered sequence and variants per window
 num_bases = np.diff(windows)
+# TODO: use np.add.reduceat
 num_accessible = np.array([  # total length of unmasked intervals
     sum(~bitmask[a:b]) for a, b 
     in zip(windows[:-1], windows[1:])
@@ -266,16 +270,40 @@ prop_segregating = num_retained / num_accessible
 prop_segregating[np.isnan(prop_segregating)] = 0.0
 prop_filtered = num_filtered / (num_retained + num_filtered)
 prop_filtered[np.isnan(prop_filtered)] = 1.0
+filter_min_size = num_bases >= min_chunk_size
+logfile.write(
+    f"{tag()} Skipping {np.sum(~filter_min_size)} chunks smaller than "
+    f"{min_chunk_size}\n"
+)
+filter_inaccessible = prop_inaccessible <= max_missing
+logfile.write(
+    f"{tag()} Skipping {np.sum(~filter_inaccessible)} chunks with a proportion of "
+    f"masked sequence greater than {max_missing}\n"
+)
+filter_filtered = prop_filtered <= max_missing
+logfile.write(
+    f"{tag()} Skipping {np.sum(~filter_filtered)} chunks with a proportion of "
+    f"filtered variants greater than {max_missing}\n"
+)
+filter_min_sites = num_retained >= min_sites
+logfile.write(
+    f"{tag()} Skipping {np.sum(~filter_min_sites)} chunks with fewer than "
+    f"{int(min_sites)} in unmasked intervals\n"
+)
+filter_recombinant = rec_rate > 0.0
+logfile.write(
+    f"{tag()} Skipping {np.sum(~filter_recombinant)} chunks with zero "
+    "recombination rate\n"
+)
 filter_chunks = np.logical_and.reduce([
-    prop_inaccessible < snakemake.params.max_missing, 
-    prop_filtered < snakemake.params.max_missing,
-    num_retained > 2,  # SINGER assertion
-    prop_segregating > 0.0,
-    rec_rate > 0.0,
+    filter_min_size,
+    filter_inaccessible,
+    filter_filtered,
+    filter_min_sites,
+    filter_recombinant,
 ])
 logfile.write(
-    f"{tag()} Skipping {np.sum(~filter_chunks)} (of {filter_chunks.size}) "
-    f"chunks with too much missing data or zero recombination rate\n"
+    f"{tag()} Skipping {np.sum(~filter_chunks)} chunks (of {filter_chunks.size} total)\n"
 )
 
 
@@ -288,13 +316,13 @@ for l, r in zip(windows[:-1][~filter_chunks], windows[1:][~filter_chunks]):
         ax.axvspan(l, r, edgecolor=None, facecolor='firebrick', alpha=0.1)
         ax.set_xlim(windows[0], windows[-1])
 axs[0].step(windows[:-1], prop_inaccessible, where="post", color="black")
-axs[0].set_ylabel("Proportion inaccessible")
+axs[0].set_ylabel("Proportion masked")
 axs[1].step(windows[:-1], prop_segregating, where="post", color="black")
 axs[1].set_ylabel("Proportion variant bases")
 axs[2].step(windows[:-1], prop_filtered, where="post", color="black")
 axs[2].set_ylabel("Proportion filtered")
 axs[3].step(windows[:-1], rec_rate, where="post", color="black")
-axs[3].set_ylabel("Recombination rate")
+axs[3].set_ylabel("Mean recombination rate")
 axs[3].set_yscale("log")
 fig.supxlabel("Position")
 fig.tight_layout()
