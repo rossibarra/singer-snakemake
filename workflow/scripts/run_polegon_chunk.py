@@ -22,12 +22,12 @@ def tag():
 
 # --- implm --- #
 
+logfile = open(snakemake.log.log, "w")
 use_polegon = snakemake.params.use_polegon
 use_mutational_span = snakemake.params.use_mutational_span
 
 if use_polegon:
-    params = yaml.safe_load(open(snakemake.input.params))
-    params = params.pop("polegon")
+    params = yaml.safe_load(open(snakemake.input.params)).pop("polegon")
     seed = params.pop("seed") + int(snakemake.wildcards.rep)
     # FIXME: Ne is lower by factor of two relative to `polegon_master`.
     # This shouldn't matter, it cancels during rescaling, but look into it.
@@ -43,11 +43,10 @@ if use_polegon:
     # just adjusts by the mean rate. Manually converting the branch spans to
     # mutational units fixes this.
     if use_mutational_span:
-        with open(snakemake.log.out, "w") as log:
-           log.write(
-               f"{tag()} Adjusting branch spans input ({prefix}_branches.txt) "
-               f"to reflect mutation rate map and setting mutation rate to unity\n"
-           )
+        logfile.write(
+            f"{tag()} Adjusting branch spans input ({prefix}_branches.txt) "
+            f"to reflect mutation rate map and setting mutation rate to unity\n"
+        )
         params["m"] = 1.0
         mutation_map = params.pop("mutation_map")
         adjusted_mu = np.loadtxt(mutation_map, ndmin=2)
@@ -61,11 +60,10 @@ if use_polegon:
            branches[:, i] = adjusted_mu.get_cumulative_mass(branches[:, i])
         np.savetxt(f"{prefix}_branches.txt", branches)
     else:
-        with open(snakemake.log.out, "w") as log:
-           log.write(
-               f"{tag()} Using mutation rate map without adjusting branch spans input "
-               f"(for DEBUGGING, local ages may be wrong)\n"
-           )
+        logfile.write(
+            f"{tag()} Using mutation rate map without adjusting branch spans input "
+            f"(for debugging only, will likely produce biased node ages)\n"
+        )
         shutil.copy(snakemake.input.branches, f"{prefix}_branches.txt")
 
     invocation = [
@@ -76,10 +74,9 @@ if use_polegon:
     for arg, val in params.items():
         invocation += f"-{arg} {val}".split()
     
-    with open(snakemake.log.out, "a") as out, open(snakemake.log.err, "w") as err:
-        print(f"{tag()}", " ".join(invocation), file=out, flush=True)
-        process = subprocess.run(invocation, check=False, stdout=out, stderr=err)
-        print(f"{tag()} POLEGON run ended ({process.returncode})", file=out, flush=True)
+    logfile.write(f"{tag()} " + " ".join(invocation) + "\n")
+    process = subprocess.run(invocation, check=False, stdout=logfile, stderr=logfile)
+    logfile.write(f"{tag()} POLEGON run ended ({process.returncode})\n")
 
     for suffix in ["muts", "branches", "nodes"]:
         os.remove(f"{prefix}_{suffix}.txt")
@@ -87,4 +84,5 @@ if use_polegon:
     assert process.returncode == 0, f"POLEGON terminated with error ({process.returncode})"
     os.rename(f"{prefix}_new_nodes.txt", snakemake.output.nodes)
 else:
+    logfile.write(f"{tag()} Skipping dating with POLEGON\n")
     shutil.copy(snakemake.input.nodes, snakemake.output.nodes)

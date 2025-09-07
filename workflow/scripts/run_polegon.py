@@ -73,10 +73,10 @@ if use_polegon:
     for arg, val in params.items():
         invocation += f"-{arg} {val}".split()
     
-    with open(snakemake.log.out, "w") as out, open(snakemake.log.err, "w") as err:
-        print(f"{tag()}", " ".join(invocation), file=out, flush=True)
-        process = subprocess.run(invocation, check=False, stdout=out, stderr=err)
-        print(f"{tag()} POLEGON run ended ({process.returncode})", file=out, flush=True)
+    with open(snakemake.log.log, "w") as logfile:
+        print(f"{tag()}", " ".join(invocation), file=logfile, flush=True)
+        process = subprocess.run(invocation, check=False, stdout=logfile, stderr=logfile)
+        print(f"{tag()} POLEGON run ended ({process.returncode})", file=logfile, flush=True)
     assert process.returncode == 0, f"POLEGON terminated with error ({process.returncode})"
     
     tables = ts.dump_tables()

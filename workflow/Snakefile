@@ -88,7 +88,7 @@ STATS_PATH = os.path.join(OUTPUT_DIR, "{chrom}", "stats")
 rule all:
     input:
         site_density = expand(
-            os.path.join(PLOTS_PATH, "site_density.png"), 
+            os.path.join(PLOTS_PATH, "site-density.png"), 
             chrom=CHROMOSOMES,
         ),
         diversity_scatter = expand(
@@ -111,14 +111,14 @@ rule all:
 
 checkpoint chunk_chromosomes:
     """
-    Chop up chromosome into chunks, adjust mutation rate to reflect missing
-    data, calculate statistics in chunks, make some plots of site/missing data density.
+    Discretize chromosome into chunks.
     """
     input: 
         vcf = os.path.join(INPUT_DIR, "{chrom}.vcf.gz"),
     output:
         chunks = directory(CHUNK_PATH),
-        vcf = os.path.join(CHROM_PATH, "{chrom}.vcf"), #TODO: mark temp, need to include as input to SINGER to make persistant
+        # TODO: mark temp, need to include as input to SINGER to make persistant
+        vcf = os.path.join(CHROM_PATH, "{chrom}.vcf"),
         vcf_stats = os.path.join(CHROM_PATH, "{chrom}.vcf.stats.p"),
         vcf_strata_stats = os.path.join(CHROM_PATH, "{chrom}.vcf.strata_stats.p"),
         mut_rate = os.path.join(CHROM_PATH, "{chrom}.mut_rate.p"),
@@ -126,9 +126,8 @@ checkpoint chunk_chromosomes:
         inaccessible = os.path.join(CHROM_PATH, "{chrom}.inaccessible.p"),
         filtered = os.path.join(CHROM_PATH, "{chrom}.filtered.p"),
         metadata = os.path.join(CHROM_PATH, "{chrom}.vcf.samples.p"),
-        mut_map = os.path.join(CHROM_PATH, "{chrom}.mut_map"), #TODO: delete
         windows = os.path.join(CHROM_PATH, "{chrom}.windows.p"),
-        site_density = os.path.join(PLOTS_PATH, "site_density.png"),
+        site_density = rules.all.input.site_density,
     log:
         log = os.path.join(CHROM_PATH, "{chrom}.log"),
     params:
@@ -157,12 +156,12 @@ checkpoint chunk_chromosomes:
 
 rule run_singer:
     """
-    Run SINGER chunk-by-chunk. Uses the "-resume" flag to resume sampling on
-    error (see https://github.com/popgenmethods/SINGER/issues/13)
+    Run SINGER chunk-by-chunk.
     """
     input:
         params = os.path.join(CHUNK_PATH, "{id}.yaml"),
-    output:  #TODO mark temp
+    output:  
+        # TODO: mark temp
         recombs = expand(
             os.path.join(CHUNK_PATH, "{id}_recombs_{rep}.txt"),
             rep=range(SINGER_MCMC_SAMPLES), allow_missing=True,
@@ -180,8 +179,7 @@ rule run_singer:
             rep=range(SINGER_MCMC_SAMPLES), allow_missing=True,
         ),
     log:
-        out = os.path.join(CHUNK_PATH, "{id}.stdout"),
-        err = os.path.join(CHUNK_PATH, "{id}.stderr"),
+        log = os.path.join(CHUNK_PATH, "{id}.singer.log"),
     params:
         mcmc_resumes = SINGER_MCMC_RESUMES,
         singer_binary = SINGER_BINARY,
@@ -191,15 +189,15 @@ rule run_singer:
 
 rule run_polegon:
     """
-    Run POLEGON to date chunks, using a mutation rate map to model masked
-    sequence.
+    Run POLEGON to date each chunk while accounting for masked sequence.
     """
     input:
         params = os.path.join(CHUNK_PATH, "{id}.yaml"),
         branches = os.path.join(CHUNK_PATH, "{id}_branches_{rep}.txt"),
         nodes = os.path.join(CHUNK_PATH, "{id}_nodes_{rep}.txt"),
         muts = os.path.join(CHUNK_PATH, "{id}_muts_{rep}.txt"),
-    output:  #TODO mark temp
+    output:  
+        # TODO mark temp
         nodes = os.path.join(CHUNK_PATH, "{id}_polegon_{rep}.txt"),
     params:
         polegon_binary = POLEGON_BINARY,
@@ -207,8 +205,7 @@ rule run_polegon:
         use_polegon = config.get("use-polegon", True),
         use_mutational_span = config.get("use-mutational-span", True),
     log:
-        out = os.path.join(CHUNK_PATH, "{id}_{rep}.stdout"),
-        err = os.path.join(CHUNK_PATH, "{id}_{rep}.stderr"),
+        log = os.path.join(CHUNK_PATH, "{id}.{rep}.log"),
     script:
         "scripts/run_polegon_chunk.py"
 
@@ -234,8 +231,7 @@ def merge_chunks_input(wildcards, regex):
 
 rule merge_chunks:
     """
-    Merge chunks into a single tree sequence. Adapted from `convert_long_arg.py`.
-    Sets mutations.parent (https://github.com/popgenmethods/SINGER/issues/11)
+    Merge chunks into a single tree sequence.
     """
     input:
         ratemap = rules.chunk_chromosomes.output.windows,
@@ -257,7 +253,6 @@ rule merge_chunks:
         "scripts/merge_chunks.py"
 
 
-# TODO: delete
 #rule run_polegon:
 #    """
 #    Run POLEGON to date chromosome, using a fine-scale mutation rate map that models
@@ -274,15 +269,14 @@ rule merge_chunks:
 #        polegon_version = POLEGON_VERSION,
 #        seed_offset = lambda w: int(w.rep),
 #    log:
-#        out = os.path.join(TREES_PATH, "{chrom}.{rep}.stdout"),
-#        err = os.path.join(TREES_PATH, "{chrom}.{rep}.stderr"),
+#        log = os.path.join(TREES_PATH, "{chrom}.{rep}.log"),
 #    script:
 #        "scripts/run_polegon.py"
         
 
 rule tree_statistics:
     """
-    Calculate per-chunk branch statistics ("fitted values") across MCMC iterations
+    Calculate expected summary statistics across MCMC iterations.
     """
     input:
         mut_rate = rules.chunk_chromosomes.output.mut_rate,
@@ -311,11 +305,10 @@ def diagnostics_input(wildcards, regex):
 
 rule diagnostics:
     """
-    Make some diagnostic plots per chromosome comparing branch and site
-    statistics.
+    Make diagnostic plots comparing expected and observed statistics.
     """
     input:
-        ratemap = rules.chunk_chromosomes.output.windows, #TODO: rename
+        windows = rules.chunk_chromosomes.output.windows,
         vcf_stats = rules.chunk_chromosomes.output.vcf_stats,
         vcf_strata_stats = rules.chunk_chromosomes.output.vcf_strata_stats,
         stats = lambda w: diagnostics_input(w, "stats"),
@@ -340,7 +333,6 @@ rule diagnostics:
 rule coalescence_rates:
     """
     Calculate pair/cross coalescence rates across MCMC iterations.
-    Rates are calculated within logarithmically-spaced time bins.
     """
     input:
         inaccessible = rules.chunk_chromosomes.output.inaccessible,
@@ -371,7 +363,7 @@ rule plot_coalescence_rates:
     Plot distributions of pair coalescence times.
     """
     input:
-        ratemap = rules.chunk_chromosomes.output.windows, #TODO: rename
+        windows = rules.chunk_chromosomes.output.windows,
         coalrate = lambda w: plot_coalescence_rates_input(w, "coalrate"),
         crossrate = lambda w: plot_coalescence_rates_input(w, "crossrate"),
     output:

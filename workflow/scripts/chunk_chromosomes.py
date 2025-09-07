@@ -282,7 +282,7 @@ logfile.write(
 filter_recombinant = rec_rate > 0.0
 logfile.write(
     f"{tag()} Skipping {np.sum(~filter_recombinant)} chunks with zero "
-    "recombination rate\n"
+    f"recombination rate\n"
 )
 filter_chunks = np.logical_and.reduce([
     filter_min_size,
@@ -292,7 +292,8 @@ filter_chunks = np.logical_and.reduce([
     filter_recombinant,
 ])
 logfile.write(
-    f"{tag()} Skipping {np.sum(~filter_chunks)} chunks (of {filter_chunks.size} total)\n"
+    f"{tag()} Skipping {np.sum(~filter_chunks)} chunks "
+    f"(of {filter_chunks.size} total)\n"
 )
 
 
@@ -444,7 +445,6 @@ pickle.dump(adjusted_mu, open(snakemake.output.mut_rate, "wb"))
 pickle.dump(inaccessible, open(snakemake.output.inaccessible, "wb"))
 pickle.dump(filtered, open(snakemake.output.filtered, "wb"))
 pickle.dump(chunks, open(snakemake.output.windows, "wb"))
-open(snakemake.output.mut_map, "w").write(ratemap_to_text(adjusted_mu))
 
 
 # dump SINGER parameters for each chunk
@@ -466,12 +466,13 @@ for i in np.flatnonzero(filter_chunks):
         "thin": int(snakemake.params.mcmc_thin), 
         "n": int(snakemake.params.mcmc_samples),
         "Ne": float(Ne),
-        #"m": float(mut.mean_rate),  # TODO: any reason to prefer coarse rates?
-        #"r": float(rec.mean_rate),
         "m": str(0.0),    # NB: SINGER expects these arguments and toggles
-        "r": float(0.0),  # map usage based on if at least one is positive
+        "r": float(0.0),  # off map usage if at least one is positive
         "mut_map": str(mutation_map_path),
         "recomb_map": str(recombination_map_path),
+        # alternatively, use mean rates
+        #"m": float(mut.mean_rate),
+        #"r": float(rec.mean_rate),
         "input": str(vcf_prefix), 
         "start": int(start), 
         "end": int(end), 

@@ -25,8 +25,7 @@ def tag():
 # --- implm --- #
 
 # statistics from VCF
-ratemap = pickle.load(open(snakemake.input.ratemap, "rb"))
-windows = ratemap.position
+windows = pickle.load(open(snakemake.input.windows, "rb")).position
 coord = windows[:-1] / 2 + windows[1:] / 2 
 vcf_stats = pickle.load(open(snakemake.input.vcf_stats, "rb"))
 site_diversity = vcf_stats['diversity']

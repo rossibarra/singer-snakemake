@@ -48,11 +48,14 @@ def tool_provenance(name, version_string, parameters):
 
 def force_positive_branch_lengths(nodes_time, edges_parent, edges_child, min_length=1e-7):
     adj_nodes_time = nodes_time.copy()
-    edge_traversal_order = np.argsort(adj_nodes_time[edges_child])
+    # assume that parents come after children in node ordering in SINGER output
+    edge_traversal_order = np.argsort(edges_child)
+    #edge_traversal_order = np.argsort(adj_nodes_time[edges_child], kind="stable")
     for e in edge_traversal_order:
         p, c = edges_parent[e], edges_child[e]
         if adj_nodes_time[p] - adj_nodes_time[c] < min_length:
             adj_nodes_time[p] = adj_nodes_time[c] + min_length
+    assert np.all(adj_nodes_time[edges_parent] - adj_nodes_time[edges_child] >= min_length)
     return adj_nodes_time
 
 
