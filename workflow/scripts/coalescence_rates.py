@@ -9,9 +9,7 @@ import sys
 import pickle
 import msprime
 import numpy as np
-import tskit
 import tszip
-from collections import defaultdict
 from datetime import datetime
 
 # --- lib --- #
@@ -21,7 +19,8 @@ def tag():
 
 
 def weighted_pair_coalescence_rates(
-    ts, sample_sets, indexes, windows, prop_accessible=None, 
+    ts, sample_sets, indexes, *,
+    windows=None, prop_accessible=None, 
     num_time_bins=25, log_time_bounds=[1, 7], cutoff=0.05,
 ):
     """
@@ -29,7 +28,10 @@ def weighted_pair_coalescence_rates(
     missing data in each window and summed over windows. Rates are not
     calculated where the proportion of uncoalesced pairs drops below `cutoff`.
     """
-    if prop_accessible is None: prop_accessible = np.ones(windows.size - 1)
+    if windows is None: 
+        windows = np.array([0.0, ts.sequence_length])
+    if prop_accessible is None: 
+        prop_accessible = np.ones(windows.size - 1)
     max_time = ts.nodes_time.max()
     time_windows = np.logspace(*log_time_bounds, num_time_bins + 1)
     counts = ts.pair_coalescence_counts(
@@ -58,51 +60,27 @@ def weighted_pair_coalescence_rates(
     return rates, counts, epochs
 
 
-# TODO: move to validation workflow
-def simulation_test(seed, popsize, num_epochs):
-    """
-    For debugging, not run
-    """
-    return msprime.sim_ancestry(
-        samples=100, 
-        recombination_rate=1e-8, 
-        sequence_length=20e6, 
-        population_size=popsize, 
-        random_seed=seed,
-    )
-    sample_sets = [list(ts.samples())]
-    indexes = [(0, 0)]
-    windows = np.linspace(0.0, ts.sequence_length, 2)
-    est, *_ = \
-        weighted_pair_coalescence_rates(
-            ts, sample_sets, indexes, windows, 
-            num_intervals=num_epochs,
-        )
-    print("Target coalesence rate:", 0.5 / popsize)
-    print("Estimated coalesence rate in intervals:", np.squeeze(est))
-    print("Relative error:", (est - 0.5 / popsize) * popsize / 2)
-
-
 # --- implm --- #
 
 num_intervals = snakemake.params.coalrate_epochs
-windows = pickle.load(open(snakemake.input.windows, "rb"))
 inaccessible = pickle.load(open(snakemake.input.inaccessible, "rb"))
-chunk_size = np.diff(windows.position)
 ts = tszip.decompress(snakemake.input.trees)
 
-# FIXME: as a crude workaround for missing data, we weight PDF for each chunk
-# by the proportion of accessible sequence. A better approach would calculate
-# PDF over each accessible interval, and then take weighted sum.
+# correct for masked sequence by adjusting edge spans
 accessible = msprime.RateMap(position=inaccessible.position, rate=1 - inaccessible.rate)
-prop_accessible = np.diff(accessible.get_cumulative_mass(windows.position)) / chunk_size
+tab = ts.dump_tables()
+tab.sites.clear()
+tab.mutations.clear()
+tab.edges.left = accessible.get_cumulative_mass(tab.edges.left)
+tab.edges.right = accessible.get_cumulative_mass(tab.edges.right)
+tab.edges.keep_rows(tab.edges.right > tab.edges.left)
+ts = tab.tree_sequence().trim()
 
 # global pair coalescence rates
 sample_sets = [list(ts.samples())]
 indexes = [(0, 0)]
 rates, pdf, breaks = weighted_pair_coalescence_rates(
-    ts, sample_sets, indexes, windows.position, 
-    prop_accessible=prop_accessible,
+    ts, sample_sets, indexes, 
     num_time_bins=num_intervals,
 )
 output = {
@@ -116,10 +94,11 @@ pickle.dump(output, open(snakemake.output.coalrate, "wb"))
 # stratified global pair coalescence rates (cross-coalescence)
 output = {}
 if snakemake.params.stratify is not None:
-    sample_sets = defaultdict(list)
-    for ind in ts.individuals():
-        strata = ind.metadata[snakemake.params.stratify]
-        sample_sets[strata].extend(ind.nodes)
+    sample_sets = {
+        p.metadata["name"]: ts.samples(population=i) 
+        for i, p in enumerate(ts.populations())
+        if len(ts.samples(population=i))
+    }
     names = np.array(sorted(sample_sets.keys()))
     sample_sets = [sample_sets[x] for x in names]
     cross_rates = np.full((names.size, names.size, num_intervals), np.nan)
@@ -129,8 +108,7 @@ if snakemake.params.stratify is not None:
         indexes = [(i, j) for j in range(names.size)]
         rates, pdf, breaks = \
             weighted_pair_coalescence_rates(
-                ts, sample_sets, indexes, windows.position, 
-                prop_accessible=prop_accessible,
+                ts, sample_sets, indexes, 
                 num_time_bins=num_intervals,
             )
         cross_rates[i] = rates

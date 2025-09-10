@@ -127,7 +127,7 @@ checkpoint chunk_chromosomes:
         filtered = os.path.join(CHROM_PATH, "{chrom}.filtered.p"),
         metadata = os.path.join(CHROM_PATH, "{chrom}.vcf.samples.p"),
         windows = os.path.join(CHROM_PATH, "{chrom}.windows.p"),
-        site_density = rules.all.input.site_density,
+        site_density = os.path.join(PLOTS_PATH, "site-density.png"), 
     log:
         log = os.path.join(CHROM_PATH, "{chrom}.log"),
     params:

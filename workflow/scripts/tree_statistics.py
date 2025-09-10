@@ -71,20 +71,21 @@ pickle.dump(stats, open(snakemake.output.stats, "wb"))
 
 # TODO: add proportion multimapped sites, to use as a trace diagnostic
 
-# TODO: populations are now encoded directly, so use ts.samples(population=i)
 # stratified summary stats
 strata_stats = {}
 if snakemake.params.stratify is not None:
-    sample_sets = defaultdict(list)
-    for ind in ts.individuals():
-        strata = ind.metadata[snakemake.params.stratify]
-        sample_sets[strata].extend(ind.nodes)
-    strata = [n for n in sample_sets.keys()]
+    sample_sets = {
+        p.metadata["name"]: ts.samples(population=i) 
+        for i, p in enumerate(ts.populations())
+        if len(ts.samples(population=i))
+    }
+    strata = list(sorted(sample_sets.keys()))
+    sample_sets = [sample_sets[x] for x in strata]
     strata_stats["strata"] = strata
     indexes = list(itertools.combinations_with_replacement(range(len(strata)), 2))
 
     strata_divergence = ts.divergence(
-        sample_sets=[s for s in sample_sets.values()], 
+        sample_sets=sample_sets,
         indexes=indexes,
         mode='site',
         windows=windows.position,
@@ -96,7 +97,7 @@ if snakemake.params.stratify is not None:
     strata_stats["divergence"] = strata_divergence
 
     strata_afs = []
-    for strata, sample_set in sample_sets.items():
+    for sample_set in sample_sets:
         afs = ts.allele_frequency_spectrum(
             sample_sets=[sample_set], 
             mode='site', 

@@ -48,9 +48,9 @@ def tool_provenance(name, version_string, parameters):
 
 def force_positive_branch_lengths(nodes_time, edges_parent, edges_child, min_length=1e-7):
     adj_nodes_time = nodes_time.copy()
+    #edge_traversal_order = np.argsort(adj_nodes_time[edges_child], kind="stable")
     # assume that parents come after children in node ordering in SINGER output
     edge_traversal_order = np.argsort(edges_child)
-    #edge_traversal_order = np.argsort(adj_nodes_time[edges_child], kind="stable")
     for e in edge_traversal_order:
         p, c = edges_parent[e], edges_child[e]
         if adj_nodes_time[p] - adj_nodes_time[c] < min_length:
@@ -105,7 +105,7 @@ for i, (params_file, recomb_file, node_file, mutation_file, branch_file) in enum
                 population_name = meta[stratify] 
                 if not population_name in population_map:
                     population_map[population_name] = len(population_map)
-                    populations.add_row(metadata={"name": population})
+                    populations.add_row(metadata={"name": population_name})
                 population.append(population_map[population_name])
             else:
                 population.append(-1)

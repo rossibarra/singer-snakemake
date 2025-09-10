@@ -4,6 +4,7 @@
 - Use fine-scale recombination and mutation rate maps in SINGER
 - Use POLEGON to date chunks accounting for masked sequence / missing data via branch spans
 - Add validation pipeline
+- Bugfix where population names were not stored correct in tree sequence population metadata
 
 # 14-Jun-25 [0.1.0]
 
