@@ -12,13 +12,14 @@ import yaml
 import stdpopsim
 import numpy as np
 
+from msprime import RateMap
 from snakemake.utils import min_version
 min_version("8.0")
 
 
 # --- parse config --- #
 
-configfile: "config/validation.yaml"
+configfile: "config/validation_stdpopsim.yaml"
 
 OUTPUT_DIR = config["output-dir"]
 INPUT_DIR = os.path.join(OUTPUT_DIR, "simulated-data")
@@ -26,13 +27,27 @@ RANDOM_SEED = int(config["random-seed"])
 NUM_REPLICATES = int(config["num-replicates"])
 MASK_SEQUENCE = config["mask-sequence"]
 MASK_VARIANTS = float(config["mask-variants"])
+INACCESSIBLE_BED = config.get("inaccessible-bed", None)
+PROP_MISPOLAR = config["prop-mispolarise"]
 TIME_GRID = np.append(np.logspace(*config["time-grid"]), np.inf)
 PROJECT_TO = int(config["project-afs-to"])
 
 # set up simulation context
-STDPOPSIM_CONFIG = config["stdpopsim-config"]
-REF_SPECIES = stdpopsim.get_species(STDPOPSIM_CONFIG["species"])
-REF_CONTIG = REF_SPECIES.get_contig(**STDPOPSIM_CONFIG["contig"])
+if "stdpopsim-config" in config:
+    SIMULATION_CONFIG = config["stdpopsim-config"]
+    REF_SPECIES = stdpopsim.get_species(SIMULATION_CONFIG["species"])
+    REF_CONTIG = REF_SPECIES.get_contig(**SIMULATION_CONFIG["contig"])
+    MUTATION_RATE = REF_CONTIG.mutation_rate
+    RECOMBINATION_RATE = REF_CONTIG.recombination_map.mean_rate
+    SIMULATION_SCRIPT = "validation/simulate_stdpopsim.py"
+elif "msprime-config" in config:
+    SIMULATION_CONFIG = config["msprime-config"]
+    MUTATION_RATE = SIMULATION_CONFIG["mutation-rate"]
+    RECOMBINATION_MAP = SIMULATION_CONFIG["recombination-map"]
+    RECOMBINATION_RATE = RateMap.read_hapmap(RECOMBINATION_MAP).mean_rate
+    SIMULATION_SCRIPT = "validation/simulate_msprime.py"
+else:
+    raise ValueError("No simulation config provided")
 
 # set up simulation design
 RNG = np.random.default_rng(RANDOM_SEED)
@@ -43,12 +58,12 @@ SINGER_SNAKEMAKE_SEED = RNG.integers(2 ** 32 - 1, size=1).item()
 SINGER_CONFIG = yaml.safe_load(open(config["singer-snakemake-config"]))
 SINGER_CONFIG["input-dir"] = INPUT_DIR
 SINGER_CONFIG["output-dir"] = OUTPUT_DIR
-SINGER_CONFIG["mutation-rate"] = REF_CONTIG.mutation_rate
-SINGER_CONFIG["recombination-rate"] = REF_CONTIG.recombination_map.mean_rate
+SINGER_CONFIG["mutation-rate"] = MUTATION_RATE
+SINGER_CONFIG["recombination-rate"] = RECOMBINATION_RATE
 SINGER_CONFIG["random-seed"] = SINGER_SNAKEMAKE_SEED
 SINGER_CONFIG["chromosomes"] = [str(x) for x in SIMULATION_SEEDS]
-BURN_IN = int(SINGER_CONFIG["mcmc-burnin"] * SINGER_CONFIG["mcmc-samples"])
-MCMC_SAMPLES = np.arange(SINGER_CONFIG["mcmc-samples"])[BURN_IN:]
+BURN_IN = int(SINGER_CONFIG["singer-mcmc-burnin"] * SINGER_CONFIG["singer-mcmc-samples"])
+MCMC_SAMPLES = np.arange(SINGER_CONFIG["singer-mcmc-samples"])[BURN_IN:]
 
 # enumerate intermediates
 VCF_PATH = f"{INPUT_DIR}/{{chrom}}.vcf.gz"
@@ -74,9 +89,8 @@ rule all:
 
 rule simulate_arg:
     """
-    Simulate multiple replicates from a stdpopsim demographic model with
-    missing sequence/variants, write out the inputs to singer-snakemake
-    pipeline.
+    Simulate multiple replicates from a demographic model with missing
+    sequence/variants, write out the inputs to singer-snakemake pipeline.
     """
     output:
         vcf = VCF_PATH,
@@ -84,9 +98,10 @@ rule simulate_arg:
     params:
         mask_sequence = MASK_SEQUENCE,
         mask_variants = MASK_VARIANTS,
-        config = STDPOPSIM_CONFIG,
-    script:
-        "validation/simulate_arg.py"
+        prop_mispolar = PROP_MISPOLAR,
+        inaccessible_bed = INACCESSIBLE_BED,
+        config = SIMULATION_CONFIG,
+    script: SIMULATION_SCRIPT
 
 
 module singer_snakemake:

@@ -12,7 +12,12 @@ from scipy.special import comb
 from typing import List
 
 
-def simulate_sequence_mask(ts: tskit.TreeSequence, density: float, length: float, seed: int = None):
+def simulate_sequence_mask(
+    ts: tskit.TreeSequence, 
+    density: float, 
+    length: float, 
+    seed: int = None,
+) -> np.ndarray:
     """
     Simulate a sequence mask by drawing interval locations from a Poisson process
     and interval lengths from a geometric distribution. Any missing flanks
@@ -31,7 +36,11 @@ def simulate_sequence_mask(ts: tskit.TreeSequence, density: float, length: float
     return bitmask
 
 
-def simulate_variant_mask(ts: tskit.TreeSequence, proportion: float, seed: int = None):
+def simulate_variant_mask(
+    ts: tskit.TreeSequence, 
+    proportion: float, 
+    seed: int = None,
+) -> np.ndarray:
     """
     Simulate a variant mask by picking sites uniformly at random.
     """
@@ -40,7 +49,11 @@ def simulate_variant_mask(ts: tskit.TreeSequence, proportion: float, seed: int =
     return bitmask
 
 
-def ratemap_to_hapmap(ratemap: msprime.RateMap, contig_name: str, missing_as_zero: bool = False) -> str:
+def ratemap_to_hapmap(
+    ratemap: msprime.RateMap, 
+    contig_name: str, 
+    missing_as_zero: bool = False,
+) -> str:
     """
     Write a recombination rate map into hapmap format.
     """
@@ -61,7 +74,11 @@ def ratemap_to_hapmap(ratemap: msprime.RateMap, contig_name: str, missing_as_zer
     return hapmap
 
 
-def assert_valid_hapmap(ratemap: msprime.RateMap, hapmap_path: str, ignore_missing: bool = False):
+def assert_valid_hapmap(
+    ratemap: msprime.RateMap, 
+    hapmap_path: str, 
+    ignore_missing: bool = False,
+):
     """
     Check that hapmap file matches rate map.
     """
@@ -115,7 +132,71 @@ def assert_valid_bedmask(bitmask: np.ndarray, bedmask_path: str):
     bitmask_check = np.full_like(bitmask, False)
     bedmask = np.loadtxt(bedmask_path, usecols=[1, 2], dtype=int)
     for a, b in bedmask: bitmask_check[a:b] = True
-    np.testing.assert_allclose(bitmask, bitmask_check)
+    assert np.all(~np.logical_xor(bitmask, bitmask_check))
+
+
+def bed_to_bitmask(bedmask_path: str, bitmask: np.ndarray):
+    """
+    Apply bed to bitmask (modified in place).
+    """
+    if bedmask_path is None: return
+    bedmask = np.loadtxt(bedmask_path, usecols=[1, 2]) 
+    for (a, b) in bedmask.astype(np.int64): bitmask[a:b] = True
+
+
+def simulate_mispolarisation(
+    ts: tskit.TreeSequence,
+    proportion: [str|float],
+    seed: int = None,
+):
+    if proportion == "maf":  # set major allele to ancestral
+        variant_frequency = np.zeros(ts.num_sites)
+        tree = ts.first()
+        for s in ts.sites():
+            if len(s.mutations):
+                tree.seek(s.position)
+                m = next(iter(s.mutations))
+                variant_frequency[s.id] = tree.num_samples(m.node)
+        variant_frequency /= ts.num_samples
+        mispolarise = variant_frequency > 0.5
+    else:
+        assert 0 <= proportion <= 1
+        rng = np.random.default_rng(seed)
+        mispolarise = rng.binomial(1, proportion, size=ts.num_sites) > 0
+    return mispolarise
+
+
+def repolarise_tree_sequence(
+    ts: tskit.TreeSequence, 
+    repolarise: np.ndarray,
+) -> tskit.TreeSequence:
+    """
+    Flip polarisation of site if `repolarise[site.id]`. Skip multiallelic and
+    nonsegregating sites.
+    """
+    assert repolarise.size == ts.num_sites
+    tab = ts.dump_tables()
+    tab.mutations.clear()
+    tab.sites.clear()
+    tree = ts.first()
+    for site in ts.sites():
+        tree.seek(site.position)
+        biallelic = len(site.mutations) == 1
+        if repolarise[site.id] and biallelic:
+            mutation = next(iter(site.mutations))
+            for r in tree.roots:
+                tab.mutations.add_row(site=site.id, node=r, derived_state=site.ancestral_state)
+            tab.sites.add_row(position=site.position, ancestral_state=mutation.derived_state)
+        else:
+            tab.sites.add_row(position=site.position, ancestral_state=site.ancestral_state)
+        for mutation in site.mutations:
+            tab.mutations.add_row(site=mutation.site, node=mutation.node, derived_state=mutation.derived_state)
+    tab.sort()
+    tab.build_index()
+    tab.compute_mutation_parents()
+    assert tab.sites.num_rows == ts.num_sites
+    assert np.all(tab.sites.position == ts.sites_position)
+    return tab.tree_sequence()
 
 
 def hypergeometric_probabilities(input_dim: int, output_dim: int) -> np.ndarray:

@@ -22,7 +22,6 @@ def test_bitmask_to_arrays():
     np.testing.assert_allclose(values_ck, values)
 
 
-
 def test_ratemap_to_text():
     text_ck = "0\t15\t0.1\n15\t20\t0.5\n20\t30\t0.9\n"
     ratemap = msprime.RateMap(

@@ -12,3 +12,4 @@ __pycache__/
 # misc outputs from debugging
 debug-*/
 results-*/
+output-*/
