@@ -4,6 +4,7 @@ latency-wait: 60
 rerun-incomplete: true
 keep-going: true
 
+#slurm resources may need to be modified. decreasing time and memory will usually increase likelihood of job being scheduled sooner, at the risk of running out of memory or time based on your data.
 default-resources:
   - slurm_account=account # replace with your slurm account name
   - slurm_partition=partition # replace with your slurm partition name
@@ -13,7 +14,7 @@ default-resources:
 set-resources:
   run_singer:
     cpus_per_task: 24
-    mem_mb: 96G
+    mem_mb: 48G
     runtime: 2880
   run_polegon:
     mem_mb: 48G
