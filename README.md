@@ -30,8 +30,14 @@ snakemake --cores=20 --configfile=config/example_config.yaml
 This repository includes a basic Snakemake SLURM profile at
 `config/slurm/config.yaml`.
 
-1. Edit `slurm_account` and `slurm_partition` in `config/slurm/config.yaml`.
-2. Run with the profile:
+1. Install/update dependencies so the SLURM executor plugin is available:
+
+```bash
+pip install -r requirements.txt
+```
+
+2. Edit `slurm_account` and `slurm_partition` in `config/slurm/config.yaml`.
+3. Run with the profile:
 
 ```bash
 snakemake --profile config/slurm --configfile=config/example_config.yaml
