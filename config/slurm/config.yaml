@@ -12,6 +12,7 @@ default-resources:
 
 set-resources:
   run_singer:
+    cpus_per_task: 4
     mem_mb: 16000
     runtime: 1440
   run_polegon:
