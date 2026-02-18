@@ -117,7 +117,6 @@ checkpoint chunk_chromosomes:
     input: 
         vcf = os.path.join(INPUT_DIR, "{chrom}.vcf.gz"),
     output:
-        chunks_dir = directory(CHUNK_PATH),
         # TODO: mark VCF temp, but need to include as input to SINGER to make persistant
         vcf = os.path.join(CHROM_PATH, "{chrom}.vcf"),
         vcf_stats = os.path.join(CHROM_PATH, "{chrom}.vcf.stats.p"),
@@ -219,7 +218,8 @@ rule run_polegon:
 
 
 def merge_chunks_params(wildcards):
-    dir = checkpoints.chunk_chromosomes.get(chrom=wildcards.chrom).output.chunks_dir
+    checkpoints.chunk_chromosomes.get(chrom=wildcards.chrom)
+    dir = CHUNK_PATH.format(chrom=wildcards.chrom)
     out = expand(
         os.path.join(dir, "{id}.yaml"),
         id=glob_wildcards(os.path.join(dir, "{id}.yaml")).id
@@ -228,7 +228,8 @@ def merge_chunks_params(wildcards):
 
 
 def merge_chunks_input(wildcards, regex):
-    dir = checkpoints.chunk_chromosomes.get(chrom=wildcards.chrom).output.chunks_dir
+    checkpoints.chunk_chromosomes.get(chrom=wildcards.chrom)
+    dir = CHUNK_PATH.format(chrom=wildcards.chrom)
     out = expand(
         os.path.join(dir, f"{{id}}_{regex}_{{rep}}.txt"),
         rep=wildcards.rep,
