@@ -8,6 +8,7 @@ import os
 import shutil
 import yaml
 import subprocess
+import pickle
 import numpy as np
 import msprime
 import tszip
