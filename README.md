@@ -30,11 +30,11 @@ snakemake --cores=20 --configfile=config/example_config.yaml
 This repository includes a basic Snakemake SLURM profile at
 `config/slurm/config.yaml`.
 
-1. Edit `slurm_account` and `slurm_partition` in `config/slurm/config.yaml`.
+1. Edit `slurm_account` and `slurm_partition` in `cluster-profile/slurm/config.yaml`.
 2. Run with the profile:
 
 ```bash
-snakemake --profile config/slurm --configfile=config/example_config.yaml
+snakemake --profile cluster-profile/slurm --configfile=config/example_config.yaml
 ```
 
 ### Inputs
