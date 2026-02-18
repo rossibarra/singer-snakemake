@@ -8,7 +8,6 @@ msprime
 scikit-allel
 scipy
 numpy
-pandas>=2.2,<3
 pyyaml
 matplotlib
 argparse
