@@ -25,6 +25,18 @@ mamba activate singer-snakemake-env
 snakemake --cores=20 --configfile=config/example_config.yaml
 ```
 
+### Running on SLURM
+
+This repository includes a basic Snakemake SLURM profile at
+`config/slurm/config.yaml`.
+
+1. Edit `slurm_account` and `slurm_partition` in `config/slurm/config.yaml`.
+2. Run with the profile:
+
+```bash
+snakemake --profile config/slurm --configfile=config/example_config.yaml
+```
+
 ### Inputs
 
 The input files for each chromosome are:
@@ -176,4 +188,3 @@ in each of YRI, CEU, and CHB:
 Where plot labels are `(frequency in YRI, in CEU, in CHB)`, and the monomorphic bins
 `(0, 0, 0)` and `(2, 2, 2)` exist because of down-projection (i.e. mutations
 which have zero frequency in a subsample of two haploids, taken from some larger sample).
-

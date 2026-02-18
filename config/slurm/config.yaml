@@ -1,0 +1,19 @@
+executor: slurm
+jobs: 100
+latency-wait: 60
+rerun-incomplete: true
+keep-going: true
+
+default-resources:
+  - slurm_account=YOUR_ACCOUNT
+  - slurm_partition=YOUR_PARTITION
+  - mem_mb=4000
+  - runtime=120
+
+set-resources:
+  run_singer:
+    mem_mb: 16000
+    runtime: 1440
+  run_polegon:
+    mem_mb: 8000
+    runtime: 720
