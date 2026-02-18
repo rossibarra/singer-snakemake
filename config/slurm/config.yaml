@@ -8,14 +8,14 @@ keep-going: true
 default-resources:
   - slurm_account=account # replace with your slurm account name
   - slurm_partition=partition # replace with your slurm partition name
-  - mem_mb=48G
+  - mem_mb=48000
   - runtime=2880 # in minutes, 48 hours = 2880 minutes
 
 set-resources:
   run_singer:
     cpus_per_task: 24
-    mem_mb: 48G
+    mem_mb: 48000
     runtime: 2880
   run_polegon:
-    mem_mb: 48G
+    mem_mb: 48000
     runtime: 2880
